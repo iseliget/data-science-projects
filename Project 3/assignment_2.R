@@ -1,3 +1,5 @@
+library('FNN');
+
 tickers = c('SPY','VIX','TNX','OIL','GLD','GOLD','N225','FTSE','SPXS','SPXL');
 
 ## Set the working directory to your own directory:
@@ -10,7 +12,7 @@ colnames(ADJCLOSE) = tickers
 
 nrDays = dim(ADJCLOSE)[1];
 
-## Comput the 1-day log returns:
+## Compute the 1-day log returns:
 RET = log( ADJCLOSE[ 2: nrDays , ] / ADJCLOSE[ 1: (nrDays-1) , ] );		# print(head(RET))
 
 ## Drop the rows (i.e., days) which have at least one NA ("Not Available" entry):
@@ -59,7 +61,11 @@ out_sample_analysis = function() {
 			y_train = RET[(i-100):(i-1),j,drop=FALSE];
 			print(dim(y_train));
 
-			y_hat = compute_linear_regression(X_train_tilda,y_train,X_test_tilda);
+
+			#y_hat = compute_linear_regression(X_train_tilda,y_train,X_test_tilda);
+			y_hat = knn.reg(train=X_train, test=X_test, y=y_train, k=10);
+			y_hat = y_hat$pred;
+
 			
 			daily_pnl[i-100,j] = sign(y_hat)*RET[i,j];
 		}
@@ -89,8 +95,14 @@ out_sample_analysis = function() {
 
 in_sample_analysis = function(){
 
-	X_train = RET[1:nrDays-1,]#%*%run_PCA(RET[1:nrDays-1,],5);
-	X_test = RET[1:nrDays-1,]#%*%run_PCA(RET[1:nrDays-1,],5);
+	X_train = RET[1:nrDays-1,]%*%run_PCA(RET[1:nrDays-1,],5);
+	X_test = RET[1:nrDays-1,]%*%run_PCA(RET[1:nrDays-1,],5);
+
+	myPCA = prcomp(X_train, scale=TRUE, center=TRUE, rtex=TRUE);
+	pcaRot = myPCA$rotation;
+	plot( pcaRot[,1], pcaRot[,2],type='p', pch=20, cex=1, col='red', xlab = 'PC1', ylab='PC2');
+	text(pcaRot[,1], pcaRot[,2], labels = rownames(pcaRot) );
+
 
 	#Create a bunch of matricies recording different statistics
 	daily_pnl = matrix(data=NA,nrow=nrDays-1,ncol=nrTickers);
