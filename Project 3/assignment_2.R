@@ -1,31 +1,93 @@
+tickers = c('SPY','VIX','TNX','OIL','GLD','GOLD','N225','FTSE','SPXS','SPXL');
 
-in_sample_regression = function(){
+## Set the working directory to your own directory:
+setwd('/Users/chaoguo/Documents/data-science-projects/Project 3');
 
-	tickers = c('SPY','VIX','TNX','OIL','GLD','GOLD','N225','FTSE','SPXS','SPXL');
+# The file with the yahoo data (daily closing prices)
+fileName = '/Users/chaoguo/Documents/data-science-projects/Project 3/ADJCLOSE.data';
+load( file = fileName);
+colnames(ADJCLOSE) = tickers 
 
-	## Set the working directory to your own directory:
-	setwd('/Users/chaoguo/Documents/data-science-projects/Project 3');
+nrDays = dim(ADJCLOSE)[1];
 
-	# The file with the yahoo data (daily closing prices)
-	fileName = '/Users/chaoguo/Documents/data-science-projects/Project 3/ADJCLOSE.data';
-	load( file = fileName);
-	colnames(ADJCLOSE) = tickers 
+## Comput the 1-day log returns:
+RET = log( ADJCLOSE[ 2: nrDays , ] / ADJCLOSE[ 1: (nrDays-1) , ] );		# print(head(RET))
 
-	nrDays = dim(ADJCLOSE)[1];
-
-	## Comput the 1-day log returns:
-	RET = log( ADJCLOSE[ 2: nrDays , ] / ADJCLOSE[ 1: (nrDays-1) , ] );		# print(head(RET))
-
-	## Drop the rows (i.e., days) which have at least one NA ("Not Available" entry):
-	nrNA_each_row = rowSums( is.na(RET) );		# print(nrNA_each_row);
-	okRows = nrNA_each_row == 0;
-	print(dim(RET));
-	RET = RET[ okRows , ];	print(dim(RET))
+## Drop the rows (i.e., days) which have at least one NA ("Not Available" entry):
+nrNA_each_row = rowSums( is.na(RET) );		# print(nrNA_each_row);
+okRows = nrNA_each_row == 0;
+print(dim(RET));
+RET = RET[ okRows , ];	print(dim(RET))
 
 
-	nrDays = dim(RET)[1];		days = rownames(RET);
-	nrTickers = dim(RET)[2];	tickers = colnames(RET);
-	print(dim(run_PCA(RET[1:nrDays-1,],5)));
+nrDays = dim(RET)[1];		days = rownames(RET);
+nrTickers = dim(RET)[2];	tickers = colnames(RET);
+
+out_sample_analysis = function() {
+
+	#Create a bunch of matricies recording different statistics
+	daily_pnl = matrix(data=NA,nrow=nrDays-101,ncol=nrTickers);
+	colnames(daily_pnl) = tickers;
+
+	sharpe = matrix(data=NA,nrow=1,ncol=nrTickers);
+	colnames(sharpe) = tickers;
+
+	annual_return = matrix(data=NA,nrow=1,ncol=nrTickers);
+	colnames(annual_return) = tickers;
+
+	total_return = matrix(data=NA,nrow=1,ncol=nrTickers);
+	colnames(total_return) = tickers;
+
+	stats = matrix(data=NA,nrow=nrTickers,ncol=4);
+	rownames(stats) = tickers;
+	colnames(stats) = c('sharpe', 'average_pnl', 'annual_return', 'total_return');
+
+	for(i in 101:(nrDays-1)) {
+		print(paste("Day",i,sep=" "));
+
+		X_train = RET[(i-100):(i-1),,drop=FALSE];
+		X_test = RET[i,,drop=FALSE];
+		Q = rbind(X_train,X_test);
+
+		Q_tilda = Q %*% run_PCA(Q,5);
+		X_train_tilda = Q_tilda[1:100,,drop=FALSE];
+		X_test_tilda = Q_tilda[101,,drop=FALSE];
+
+		for(j in 1:nrTickers) {
+			#print('#############################################');
+			#print( paste('Stock = ',tickers[i] ) );
+			y_train = RET[(i-100):(i-1),j,drop=FALSE];
+			print(dim(y_train));
+
+			y_hat = compute_linear_regression(X_train_tilda,y_train,X_test_tilda);
+			
+			daily_pnl[i-100,j] = sign(y_hat)*RET[i,j];
+		}
+	}
+
+	for(k in 1:nrTickers) {
+		sharpe[1,k] = sqrt(252) * mean(daily_pnl[,k])/sd(daily_pnl[,k]);
+		annual_return[1,k] = mean(daily_pnl[,k])*252;
+		total_return[1,k] = sum(daily_pnl[,k]);
+
+		stats[k,1] = sharpe[1,k];
+		stats[k,2] = mean(daily_pnl[,k]);
+		stats[k,3] = annual_return[1,k];
+		stats[k,4] = total_return[1,k];
+	}
+
+
+	print(annual_return);
+	print(stats);
+	print(colMeans(stats));
+
+	# cum_daily_pnl = apply(daily_pnl,2,cumsum);
+	# plot_cumsum(cum_daily_pnl);
+
+	return('DONE!');
+}
+
+in_sample_analysis = function(){
 
 	X_train = RET[1:nrDays-1,]#%*%run_PCA(RET[1:nrDays-1,],5);
 	X_test = RET[1:nrDays-1,]#%*%run_PCA(RET[1:nrDays-1,],5);
@@ -54,10 +116,9 @@ in_sample_regression = function(){
 		print(dim(y_train))
 
 		y_hat = compute_linear_regression(X_train, y_train, X_test);
-
 		
 		# compute the various performance statistics:
-		for (j in 1:nrDays-1) {
+		for (j in 1:(nrDays-1)) {
 			daily_pnl[j,i] = sign(y_hat[j])*y_train[j];
 		}
 
@@ -129,7 +190,7 @@ compute_linear_regression = function(X_train, y_train, X_test){
 	regObj = lm(y ~ . , data = both)  # with intercept  beta_0
 	# regObj = lm(y ~ . +0, data = both)  # without intercept  beta_0
 
-	print(summary( regObj ) );   # see the summary of the regression
+	#print(summary( regObj ) );   # see the summary of the regression
 
 	rsq = summary( regObj )$r.squared;		# print( paste('R_square= ', rsq) );
 
