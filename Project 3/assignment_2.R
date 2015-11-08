@@ -1,5 +1,5 @@
 
-main_linear_regression= function(){
+in_sample_regression = function(){
 
 	tickers = c('SPY','VIX','TNX','OIL','GLD','GOLD','N225','FTSE','SPXS','SPXL');
 
@@ -27,8 +27,8 @@ main_linear_regression= function(){
 	nrTickers = dim(RET)[2];	tickers = colnames(RET);
 	print(dim(run_PCA(RET[1:nrDays-1,],5)));
 
-	X_train = RET[1:nrDays-1,]%*%run_PCA(RET[1:nrDays-1,],5);
-	X_test = RET[1:nrDays-1,]%*%run_PCA(RET[1:nrDays-1,],5);
+	X_train = RET[1:nrDays-1,]#%*%run_PCA(RET[1:nrDays-1,],5);
+	X_test = RET[1:nrDays-1,]#%*%run_PCA(RET[1:nrDays-1,],5);
 
 	#Create a bunch of matricies recording different statistics
 	daily_pnl = matrix(data=NA,nrow=nrDays-1,ncol=nrTickers);
@@ -80,6 +80,7 @@ main_linear_regression= function(){
 	}
 	print(annual_return);
 	print(stats);
+	print(colMeans(stats));
 
 	# cum_daily_pnl = apply(daily_pnl,2,cumsum);
 	# plot_cumsum(cum_daily_pnl);
