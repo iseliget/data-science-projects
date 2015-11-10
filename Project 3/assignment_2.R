@@ -26,6 +26,7 @@ nrDays = dim(RET)[1];		days = rownames(RET);
 nrTickers = dim(RET)[2];	tickers = colnames(RET);
 
 out_sample_analysis = function() {
+	print("Out sample analysis, with PCA, no KNN")
 
 	#Create a bunch of matricies recording different statistics
 	daily_pnl = matrix(data=NA,nrow=nrDays-101,ncol=nrTickers);
@@ -51,25 +52,30 @@ out_sample_analysis = function() {
 		X_test = RET[i,,drop=FALSE];
 		Q = rbind(X_train,X_test);
 
-		Q_tilda = Q %*% run_PCA(Q,5);
+		Q_tilda = run_PCA(Q,5);
 		X_train_tilda = Q_tilda[1:100,,drop=FALSE];
 		X_test_tilda = Q_tilda[101,,drop=FALSE];
 
 		for(j in 1:nrTickers) {
 			#print('#############################################');
 			#print( paste('Stock = ',tickers[i] ) );
-			y_train = RET[(i-100):(i-1),j,drop=FALSE];
-			print(dim(y_train));
+			y_train = RET[(i-99):i,j,drop=FALSE];
 
-
+			# print("Out sample analysis using normal regression with no PCA");
 			#y_hat = compute_linear_regression(X_train_tilda,y_train,X_test_tilda);
-			y_hat = knn.reg(train=X_train, test=X_test, y=y_train, k=10);
+			
+			#Out sample analysis with PCA and KNN:
+			y_hat = knn.reg(train=X_train_tilda, test=X_test_tilda, y=y_train, k=10);
 			y_hat = y_hat$pred;
 
 			
-			daily_pnl[i-100,j] = sign(y_hat)*RET[i,j];
+			daily_pnl[i-100,j] = sign(y_hat)*RET[(i+1),j];
 		}
 	}
+
+	print(dim(daily_pnl));
+	print(head(daily_pnl));
+	print(tail(daily_pnl));
 
 	for(k in 1:nrTickers) {
 		sharpe[1,k] = sqrt(252) * mean(daily_pnl[,k])/sd(daily_pnl[,k]);
@@ -94,13 +100,15 @@ out_sample_analysis = function() {
 }
 
 in_sample_analysis = function(){
+	print('In sample analysis using top 5 PC');
 
-	X_train = RET[1:nrDays-1,]%*%run_PCA(RET[1:nrDays-1,],5);
-	X_test = RET[1:nrDays-1,]%*%run_PCA(RET[1:nrDays-1,],5);
+	X_train = run_PCA(RET[1:nrDays-1,],5);
+	X_test = run_PCA(RET[1:nrDays-1,],5);
 
 	myPCA = prcomp(X_train, scale=TRUE, center=TRUE, rtex=TRUE);
 	pcaRot = myPCA$rotation;
-	plot( pcaRot[,1], pcaRot[,2],type='p', pch=20, cex=1, col='red', xlab = 'PC1', ylab='PC2');
+	print(myPCA);
+	plot(pcaRot[,1], pcaRot[,2],type='p', pch=20, cex=1, col='red', xlab = 'PC1', ylab='PC2');
 	text(pcaRot[,1], pcaRot[,2], labels = rownames(pcaRot) );
 
 
@@ -122,10 +130,10 @@ in_sample_analysis = function(){
 	colnames(stats) = c('sharpe', 'average_pnl', 'annual_return', 'total_return');
 
 	for(i in 1:nrTickers){  
-		print('#############################################');
-		print( paste('Stock = ',tickers[i] ) );
+		#print('#############################################');
+		#print( paste('Stock = ',tickers[i] ) );
 		y_train = RET[ 2 : nrDays , tickers[i], drop=FALSE];  # "drop=FALSE" ensurs it remains a 2-D array..
-		print(dim(y_train))
+		#print(dim(y_train))
 
 		y_hat = compute_linear_regression(X_train, y_train, X_test);
 		
@@ -151,8 +159,10 @@ in_sample_analysis = function(){
 		
 		# readline('Press key to continue...');
 	}
-	print(annual_return);
+	#print(annual_return);
+	print("STATISTICS:")
 	print(stats);
+	print("AVERAGE STATISTICS:");
 	print(colMeans(stats));
 
 	# cum_daily_pnl = apply(daily_pnl,2,cumsum);
@@ -160,7 +170,6 @@ in_sample_analysis = function(){
 
 	return('DONE!');
 }
-
 
 compute_Sharpe_Ratio = function(x){
 	sh = mean(x, na.rm=TRUE) / sd(x, na.rm=TRUE) * sqrt(252);  return(sh);
@@ -224,7 +233,9 @@ compute_linear_regression = function(X_train, y_train, X_test){
 run_PCA = function(high_dim_train,num_of_cp) {
     pca_result = prcomp(high_dim_train, scale=TRUE, center=TRUE, rtex=TRUE);
 
-    pc_vectors = pca_result$rotation[,1:num_of_cp];
+
+    SCORES = pca_result$x[,1:num_of_cp];
+
     #print(paste("The first",num_of_cp,"principal components are:", sep=" "));
-    return(pc_vectors);
+    return(SCORES);
 }
